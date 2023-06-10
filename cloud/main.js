@@ -14,7 +14,7 @@ Parse.Cloud.define("GoogleSignIn", async (request) => {
             process.env.GOOGLE_CLIENT_SECRET,
             process.env.GOOGLE_REDIRECT_URI
         )
-        const scopes = ['https://www.googleapis.com/auth/userinfo.profile', 'https://www.googleapis.com/auth/userinfo.email'];
+        const scopes = ['openid', 'https://www.googleapis.com/auth/userinfo.profile', 'https://www.googleapis.com/auth/userinfo.email'];
         const url = oauth2Client.generateAuthUrl({
             access_type: 'offline',
             scope: scopes
@@ -25,7 +25,7 @@ Parse.Cloud.define("GoogleSignIn", async (request) => {
     }
 });
 
-Parse.Cloud.define("GoogleGetProfile", async (request) => {
+Parse.Cloud.define("GoogleGetID", async (request) => {
     const dotenv = require('dotenv')
     dotenv.config()
     if (!process.env.GOOGLE_CLIENT_ID ||
@@ -34,7 +34,6 @@ Parse.Cloud.define("GoogleGetProfile", async (request) => {
         return
     }
 
-    let res
     try {
         const { google } = require('googleapis')
         const oauth2Client = new google.auth.OAuth2(
@@ -43,17 +42,22 @@ Parse.Cloud.define("GoogleGetProfile", async (request) => {
             process.env.GOOGLE_REDIRECT_URI
         )
         const { tokens } = await oauth2Client.getToken(request.params.code)
-        const accessToken = tokens.access_token
+        console.log(tokens)
+        oauth2Client.setCredentials({ access_token: tokens.access_token })
 
-        oauth2Client.setCredentials({ access_token: accessToken })
-
-        const people = google.people({ version: 'v1', auth: oauth2Client })
-        res = await people.people.get({
+        const api = google.people({ version: 'v1', auth: oauth2Client })
+        const people = await api.people.get({
             resourceName: 'people/me',
-            personFields: 'names,emailAddresses'
+            personFields: 'emailAddresses'
         })
+        console.log(people)
+        return {
+            access_token: tokens.access_token,
+            id_token: tokens.id_token,
+            email: people.data.emailAddresses[0].value,
+            id: people.data.emailAddresses[0].metadata.source.id
+        }
     } catch (e) {
         throw e
     }
-    return res.data
 });
